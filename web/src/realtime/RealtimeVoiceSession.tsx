@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useConversation } from '@elevenlabs/react'
-import { registerVoiceSession } from './RealtimeSession'
+import { registerVoiceSession, resetRealtimeSessionState } from './RealtimeSession'
 import { realtimeClientTools, registerSessionStore } from './realtimeClientTools'
 import { fetchVoiceToken } from '@/api/voice'
 import type { VoiceSession, VoiceSessionConfig, ConversationStatus, StatusCallback } from './types'
@@ -35,12 +35,15 @@ class RealtimeVoiceSessionImpl implements VoiceSession {
         statusCallback?.('connecting')
 
         // Request microphone permission first
+        let permissionStream: MediaStream | null = null
         try {
-            await navigator.mediaDevices.getUserMedia({ audio: true })
+            permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true })
         } catch (error) {
             console.error('[Voice] Failed to get microphone permission:', error)
             statusCallback?.('error', 'Microphone permission denied')
             throw error
+        } finally {
+            permissionStream?.getTracks().forEach((track) => track.stop())
         }
 
         // Fetch conversation token from server
@@ -169,6 +172,7 @@ export function RealtimeVoiceSession({
 
     const handleDisconnect = useCallback(() => {
         if (DEBUG) console.log('[Voice] Realtime session disconnected')
+        resetRealtimeSessionState()
         onStatusChange?.('disconnected')
     }, [onStatusChange])
 

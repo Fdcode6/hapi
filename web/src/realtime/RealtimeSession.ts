@@ -38,6 +38,11 @@ export async function stopRealtimeSession() {
     }
 }
 
+export function resetRealtimeSessionState() {
+    currentSessionId = null
+    voiceSessionStarted = false
+}
+
 export function registerVoiceSession(session: VoiceSession) {
     if (voiceSession) {
         console.warn('[Voice] Voice session already registered, replacing with new one')
