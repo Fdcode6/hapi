@@ -195,11 +195,12 @@ export function NewSession(props: {
 
         setError(null)
         try {
+            const resolvedModel = model !== 'auto' && agent !== 'opencode' ? model : undefined
             const result = await spawnSession({
                 machineId,
                 directory: directory.trim(),
                 agent,
-                model: model !== 'auto' ? model : undefined,
+                model: resolvedModel,
                 yolo: yoloMode,
                 sessionType,
                 worktreeName: sessionType === 'worktree' ? (worktreeName.trim() || undefined) : undefined

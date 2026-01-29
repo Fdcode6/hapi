@@ -106,6 +106,31 @@ export class AcpSdkBackend implements AgentBackend {
         return sessionId;
     }
 
+    async loadSession(config: AgentSessionConfig & { sessionId: string }): Promise<string> {
+        if (!this.transport) {
+            throw new Error('ACP transport not initialized');
+        }
+
+        const response = await withRetry(
+            () => this.transport!.sendRequest('session/load', {
+                sessionId: config.sessionId,
+                cwd: config.cwd,
+                mcpServers: config.mcpServers
+            }),
+            {
+                ...AcpSdkBackend.INIT_RETRY_OPTIONS,
+                onRetry: (error, attempt, nextDelayMs) => {
+                    logger.debug(`[ACP] session/load attempt ${attempt} failed, retrying in ${nextDelayMs}ms`, error);
+                }
+            }
+        );
+
+        const loadedSessionId = isObject(response) ? asString(response.sessionId) : null;
+        const sessionId = loadedSessionId ?? config.sessionId;
+        this.activeSessionId = sessionId;
+        return sessionId;
+    }
+
     async prompt(
         sessionId: string,
         content: PromptContent[],
@@ -129,9 +154,11 @@ export class AcpSdkBackend implements AgentBackend {
 
             const stopReason = isObject(response) ? asString(response.stopReason) : null;
             if (stopReason) {
+                this.messageHandler?.flushText();
                 onUpdate({ type: 'turn_complete', stopReason });
             }
         } finally {
+            this.messageHandler?.flushText();
             this.messageHandler = null;
             this.isProcessingMessage = false;
             this.notifyResponseComplete();

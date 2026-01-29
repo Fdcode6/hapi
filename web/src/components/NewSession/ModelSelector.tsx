@@ -10,6 +10,9 @@ export function ModelSelector(props: {
 }) {
     const { t } = useTranslation()
     const options = MODEL_OPTIONS[props.agent]
+    if (options.length === 0) {
+        return null
+    }
 
     return (
         <div className="flex flex-col gap-1.5 px-3 py-3">

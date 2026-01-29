@@ -327,7 +327,9 @@ export async function startRunner(): Promise<void> {
           ? 'codex'
           : agent === 'gemini'
             ? 'gemini'
-            : 'claude';
+            : agent === 'opencode'
+              ? 'opencode'
+              : 'claude';
         const args = [agentCommand];
         if (options.resumeSessionId) {
             if (agent === 'codex') {
@@ -337,7 +339,7 @@ export async function startRunner(): Promise<void> {
             }
         }
         args.push('--hapi-starting-mode', 'remote', '--started-by', 'runner');
-        if (options.model) {
+        if (options.model && agent !== 'opencode') {
           args.push('--model', options.model);
         }
         if (yolo) {

@@ -1,4 +1,4 @@
-export type AgentType = 'claude' | 'codex' | 'gemini'
+export type AgentType = 'claude' | 'codex' | 'gemini' | 'opencode'
 export type SessionType = 'simple' | 'worktree'
 
 export const MODEL_OPTIONS: Record<AgentType, { value: string; label: string }[]> = {
@@ -20,4 +20,5 @@ export const MODEL_OPTIONS: Record<AgentType, { value: string; label: string }[]
         { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
         { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
     ],
+    opencode: [],
 }

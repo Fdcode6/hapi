@@ -18,6 +18,7 @@ export type {
     ClaudePermissionMode,
     CodexPermissionMode,
     GeminiPermissionMode,
+    OpencodePermissionMode,
     ModelMode,
     PermissionMode,
     PermissionModeOption,

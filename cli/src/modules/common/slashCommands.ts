@@ -42,6 +42,7 @@ const BUILTIN_COMMANDS: Record<string, SlashCommand[]> = {
         { name: 'clear', description: 'Clear conversation', source: 'builtin' },
         { name: 'compress', description: 'Compress context', source: 'builtin' },
     ],
+    opencode: [],
 };
 
 /**

@@ -50,6 +50,7 @@ const BUILTIN_COMMANDS: Record<string, SlashCommand[]> = {
         { name: 'compress', description: 'Compress the context by replacing it with a summary', source: 'builtin' },
         { name: 'stats', description: 'Check session stats', source: 'builtin' },
     ],
+    opencode: [],
 }
 
 export function useSlashCommands(
