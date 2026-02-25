@@ -41,6 +41,7 @@
         "smoke:fdcode": "./scripts/fdcode-smoke.sh"
     },
     "devDependencies": {
+        "@types/node": "^25.3.0",
         "concurrently": "^9.2.1",
         "react-devtools-core": "^7.0.1",
         "vite-plugin-pwa": "^1.2.0"
