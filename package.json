@@ -1,10 +1,22 @@
 {
     "name": "hapi",
     "private": true,
-    "workspaces": ["cli", "shared", "hub", "web", "website", "docs"],
+    "workspaces": [
+        "cli",
+        "shared",
+        "hub",
+        "web",
+        "website",
+        "docs",
+        "apps/*",
+        "packages/*"
+    ],
     "scripts": {
         "build:site": "bun run --cwd website build && bun run --cwd docs docs:build && cp -r docs/.vitepress/dist website/dist/public/docs",
         "dev": "concurrently \"bun run dev:hub\" \"bun run dev:web\" --kill-others-on-exit",
+        "dev:fdcode": "./scripts/fdcode-dev.sh",
+        "dev:fdcode:cloud": "bun run --cwd apps/cloud-api dev",
+        "dev:fdcode:daemon": "bun run --cwd apps/fdcode-daemon dev",
         "build": "bun run build:cli && bun run build:hub && bun run build:web",
         "build:cli": "cd cli && bun run build",
         "build:single-exe": "bun run download:tunwg && bun run build:web && (cd hub && bun run generate:embedded-web-assets) && (cd cli && bun run build:exe:allinone)",
@@ -15,15 +27,18 @@
         "dev:hub": "cd hub && bun run dev",
         "dev:web": "cd web && bun run dev",
         "typecheck": "bun run typecheck:cli && bun run typecheck:web && bun run typecheck:hub",
+        "typecheck:fdcode": "bun run --cwd apps/cloud-api typecheck && bun run --cwd apps/fdcode-daemon typecheck && bun run --cwd apps/mobile-expo typecheck && bun run --cwd packages/protocol typecheck && bun run --cwd packages/driver-sdk typecheck",
         "typecheck:cli": "cd cli && bun run typecheck",
         "typecheck:hub": "cd hub && bun run typecheck",
         "typecheck:web": "cd web && bun run typecheck",
         "test": "bun run test:cli && bun run test:hub && bun run test:web",
+        "test:fdcode": "bun test apps/cloud-api/src apps/fdcode-daemon/src apps/mobile-expo/src packages/protocol/src packages/driver-sdk/src",
         "test:cli": "cd cli && bun run test",
         "test:hub": "cd hub && bun run test",
         "test:web": "cd web && bun run test",
         "clean-session": "bun run hub/scripts/cleanup-sessions.ts",
-        "release-all": "cd cli && bun run release-all"
+        "release-all": "cd cli && bun run release-all",
+        "smoke:fdcode": "./scripts/fdcode-smoke.sh"
     },
     "devDependencies": {
         "concurrently": "^9.2.1",

@@ -1,0 +1,21 @@
+{
+    "name": "@fdcode/fdcode-daemon",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "dev": "bun --watch run src/index.ts",
+        "start": "bun run src/index.ts",
+        "test": "bun test",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@fdcode/driver-sdk": "file:../../packages/driver-sdk",
+        "@fdcode/protocol": "file:../../packages/protocol",
+        "zod": "^4.2.1"
+    },
+    "devDependencies": {
+        "bun-types": "^1.3.5",
+        "typescript": "^5"
+    }
+}
