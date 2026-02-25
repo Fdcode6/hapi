@@ -154,6 +154,33 @@ describe('connection manager', () => {
         expect(manager.getStatus()).toBe('degraded')
     })
 
+
+    it('shows lightweight hint only after disconnect threshold', async () => {
+        let now = 1_000
+        const ws = new FakeWebSocket()
+
+        const manager = new ConnectionManager({
+            realtimeWsUrl: 'wss://api.example.com/v1/realtime',
+            refreshAccessToken: async () => 'fresh-token',
+            fetchEventsAfter: async (): Promise<EventEnvelope[]> => [],
+            createWebSocket: () => ws,
+            now: () => now,
+            reconnectBaseMs: 50,
+            reconnectMaxMs: 100
+        })
+
+        await manager.enterForeground('s1', 0, { onEvent: () => {} })
+        ws.emitOpen()
+        ws.emitClose()
+
+        now += 5_000
+        expect(manager.getConnectionHint()).toBeNull()
+
+        now += 6_000
+        expect(manager.getConnectionHint()).not.toBeNull()
+        manager.stop()
+    })
+
     it('shows reconnect hint only after 10 seconds', () => {
         const manager = new ConnectionManager({
             realtimeWsUrl: 'wss://api.example.com/v1/realtime',

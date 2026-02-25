@@ -1,3 +1,4 @@
+import { buildConnectionHint } from '../ui/connection-hint'
 import { RealtimeServerFrameSchema, type EventEnvelope } from '@fdcode/protocol'
 
 export type ConnectionStatus = 'healthy' | 'degraded' | 'offline'
@@ -119,6 +120,13 @@ export class ConnectionManager {
 
     shouldShowConnectionHint(disconnectedMs: number): boolean {
         return disconnectedMs >= 10_000
+    }
+
+    getConnectionHint(): string | null {
+        return buildConnectionHint({
+            status: this.status,
+            disconnectedMs: this.getDisconnectedMs()
+        })
     }
 
     getDisconnectedMs(): number {
