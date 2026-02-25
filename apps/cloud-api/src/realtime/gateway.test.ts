@@ -8,11 +8,16 @@ import { openCloudDatabase } from '../store/sqlite'
 import { RealtimeGateway, type RealtimeSocketData } from './gateway'
 
 const servers: Array<Bun.Server<RealtimeSocketData>> = []
+const gateways: RealtimeGateway[] = []
 
 afterEach(() => {
     while (servers.length > 0) {
         const server = servers.pop()
         server?.stop(true)
+    }
+    while (gateways.length > 0) {
+        const gateway = gateways.pop()
+        gateway?.shutdown()
     }
 })
 
@@ -49,38 +54,64 @@ function parseFrame(raw: string): RealtimeServerFrame {
     return parsed.data
 }
 
+async function createServer(args?: {
+    maxSocketsPerSession?: number
+    maxSocketsPerUser?: number
+    pingTimeoutMs?: number
+    sweepIntervalMs?: number
+}) {
+    const db = openCloudDatabase(':memory:')
+    const owners = new SessionOwnershipStore(db)
+    const events = new EventService(new EventRepository(db))
+    const gateway = new RealtimeGateway(events, owners, args)
+    gateways.push(gateway)
+
+    const server = Bun.serve<RealtimeSocketData>({
+        port: 0,
+        fetch: (req, bunServer) => {
+            const url = new URL(req.url)
+            if (url.pathname === '/v1/realtime') {
+                return gateway.handleUpgrade(req, bunServer)
+            }
+            return new Response('not found', { status: 404 })
+        },
+        websocket: gateway.websocket
+    })
+    servers.push(server)
+
+    return { server, owners, events }
+}
+
+async function connectSocket(server: Bun.Server<RealtimeSocketData>, args: {
+    sessionId: string
+    userId: string
+    afterSeq: number
+}) {
+    const token = await signAccessToken({
+        userId: args.userId,
+        sessionId: `sid-${crypto.randomUUID()}`,
+        expiresIn: '20m'
+    })
+
+    const wsUrl = server.url.toString().replace('http://', 'ws://')
+    return new WebSocket(
+        `${wsUrl}v1/realtime?sessionId=${args.sessionId}&afterSeq=${args.afterSeq}&accessToken=${encodeURIComponent(token)}`
+    )
+}
+
 describe('realtime gateway', () => {
     it('replays afterSeq on connect and streams live events', async () => {
-        const db = openCloudDatabase(':memory:')
-        const owners = new SessionOwnershipStore(db)
-        const events = new EventService(new EventRepository(db))
-        const gateway = new RealtimeGateway(events, owners)
+        const { server, owners, events } = await createServer()
 
         owners.setOwner('s1', 'owner')
         events.append(createEvent('s1', 1))
         events.append(createEvent('s1', 2))
 
-        const server = Bun.serve<RealtimeSocketData>({
-            port: 0,
-            fetch: (req, bunServer) => {
-                const url = new URL(req.url)
-                if (url.pathname === '/v1/realtime') {
-                    return gateway.handleUpgrade(req, bunServer)
-                }
-                return new Response('not found', { status: 404 })
-            },
-            websocket: gateway.websocket
-        })
-        servers.push(server)
-
-        const token = await signAccessToken({
+        const ws = await connectSocket(server, {
+            sessionId: 's1',
             userId: 'owner',
-            sessionId: 'sid-1',
-            expiresIn: '20m'
+            afterSeq: 1
         })
-
-        const wsUrl = server.url.toString().replace('http://', 'ws://')
-        const ws = new WebSocket(`${wsUrl}v1/realtime?sessionId=s1&afterSeq=1&accessToken=${encodeURIComponent(token)}`)
 
         const frames: RealtimeServerFrame[] = []
         ws.onmessage = (event) => {
@@ -100,35 +131,74 @@ describe('realtime gateway', () => {
         ws.close()
     })
 
-    it('supports ping/pong keepalive frames', async () => {
-        const db = openCloudDatabase(':memory:')
-        const owners = new SessionOwnershipStore(db)
-        const events = new EventService(new EventRepository(db))
-        const gateway = new RealtimeGateway(events, owners)
+    it('resume with lower cursor does not duplicate already delivered events', async () => {
+        const { server, owners, events } = await createServer()
+        owners.setOwner('s1', 'owner')
+        events.append(createEvent('s1', 1))
+        events.append(createEvent('s1', 2))
 
+        const ws = await connectSocket(server, {
+            sessionId: 's1',
+            userId: 'owner',
+            afterSeq: 0
+        })
+
+        const frames: RealtimeServerFrame[] = []
+        ws.onmessage = (event) => {
+            frames.push(parseFrame(String(event.data)))
+        }
+
+        await waitFor(() => frames.some((frame) => frame.type === 'ready'))
+        const beforeResumeCount = frames.filter((frame) => frame.type === 'event').length
+
+        ws.send(JSON.stringify({
+            type: 'resume',
+            sessionId: 's1',
+            afterSeq: 0
+        }))
+
+        await waitFor(() => frames.filter((frame) => frame.type === 'ready').length >= 2)
+        const afterResumeCount = frames.filter((frame) => frame.type === 'event').length
+        expect(afterResumeCount).toBe(beforeResumeCount)
+
+        ws.close()
+    })
+
+    it('enforces max sockets per session', async () => {
+        const { server, owners } = await createServer({ maxSocketsPerSession: 1 })
+        owners.setOwner('s-limit', 'owner')
+
+        const ws1 = await connectSocket(server, {
+            sessionId: 's-limit',
+            userId: 'owner',
+            afterSeq: 0
+        })
+        const ws2 = await connectSocket(server, {
+            sessionId: 's-limit',
+            userId: 'owner',
+            afterSeq: 0
+        })
+
+        let ws2Closed = false
+        ws2.onclose = () => {
+            ws2Closed = true
+        }
+
+        await waitFor(() => ws2Closed)
+
+        ws1.close()
+        ws2.close()
+    })
+
+    it('supports ping/pong keepalive frames', async () => {
+        const { server, owners } = await createServer()
         owners.setOwner('s2', 'owner')
 
-        const server = Bun.serve<RealtimeSocketData>({
-            port: 0,
-            fetch: (req, bunServer) => {
-                const url = new URL(req.url)
-                if (url.pathname === '/v1/realtime') {
-                    return gateway.handleUpgrade(req, bunServer)
-                }
-                return new Response('not found', { status: 404 })
-            },
-            websocket: gateway.websocket
-        })
-        servers.push(server)
-
-        const token = await signAccessToken({
+        const ws = await connectSocket(server, {
+            sessionId: 's2',
             userId: 'owner',
-            sessionId: 'sid-2',
-            expiresIn: '20m'
+            afterSeq: 0
         })
-
-        const wsUrl = server.url.toString().replace('http://', 'ws://')
-        const ws = new WebSocket(`${wsUrl}v1/realtime?sessionId=s2&afterSeq=0&accessToken=${encodeURIComponent(token)}`)
 
         const frames: RealtimeServerFrame[] = []
         ws.onmessage = (event) => {
@@ -143,6 +213,28 @@ describe('realtime gateway', () => {
         const pong = frames.find((frame) => frame.type === 'pong')
         expect(pong?.ts).toBe(123)
 
+        ws.close()
+    })
+
+    it('closes stale sockets when ping timeout exceeded', async () => {
+        const { server, owners } = await createServer({
+            pingTimeoutMs: 80,
+            sweepIntervalMs: 20
+        })
+        owners.setOwner('s-timeout', 'owner')
+
+        const ws = await connectSocket(server, {
+            sessionId: 's-timeout',
+            userId: 'owner',
+            afterSeq: 0
+        })
+
+        let closed = false
+        ws.onclose = () => {
+            closed = true
+        }
+
+        await waitFor(() => closed, 1500)
         ws.close()
     })
 })
