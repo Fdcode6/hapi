@@ -114,6 +114,7 @@ AUTH_HEADER="authorization: Bearer ${ACCESS_TOKEN}"
 
 pass_count=0
 fail_count=0
+bark_expected_count=0
 
 run_driver() {
     local driver="$1"
@@ -165,6 +166,7 @@ PY
             if [[ "${final_text}" == "${expected}" ]]; then
                 echo "[fdcode-smoke] ${driver} ok -> ${final_text}"
                 pass_count=$((pass_count + 1))
+                bark_expected_count=$((bark_expected_count + 1))
             else
                 echo "[fdcode-smoke] ${driver} mismatch: expected=${expected}, got=${final_text}"
                 fail_count=$((fail_count + 1))
@@ -199,11 +201,60 @@ for driver in ${FDCODE_SMOKE_DRIVERS}; do
     esac
 done
 
+# approve_tool smoke path (tool_result replay)
+approve_session_id="smoke-approve-$(date +%s)-$RANDOM"
+approve_payload="$(python3 - <<'PY' "${approve_session_id}" "${FDCODE_DEFAULT_DRIVER}"
+import json, sys
+print(json.dumps({
+    "commandId": f"approve-{sys.argv[1]}",
+    "sessionId": sys.argv[1],
+    "driver": sys.argv[2],
+    "type": "approve_tool",
+    "payload": {
+        "requestId": "smoke-approve-request",
+        "approved": True,
+        "reason": "smoke-auto-approve"
+    },
+    "ttlMs": 30000
+}))
+PY
+)"
+
+curl -fsS -X POST "${FDCODE_CLOUD_URL}/v1/sessions/${approve_session_id}/commands" \
+    -H "${AUTH_HEADER}" \
+    -H 'content-type: application/json' \
+    -d "${approve_payload}" >/dev/null
+
+approve_started_at="$(date +%s)"
+while true; do
+    approve_events_json="$(curl -fsS "${FDCODE_CLOUD_URL}/v1/sessions/${approve_session_id}/events?afterSeq=0" -H "${AUTH_HEADER}")"
+    approve_ok="$(python3 - <<'PY' "${approve_events_json}"
+import json, sys
+events = json.loads(sys.argv[1]).get("events", [])
+print("1" if any(e.get("type") == "tool_result" for e in events) else "0")
+PY
+)"
+
+    if [[ "${approve_ok}" == "1" ]]; then
+        echo "[fdcode-smoke] approve flow ok"
+        pass_count=$((pass_count + 1))
+        break
+    fi
+
+    if (( "$(date +%s)" - approve_started_at >= FDCODE_SMOKE_TIMEOUT_SEC )); then
+        echo "[fdcode-smoke] approve flow timeout"
+        fail_count=$((fail_count + 1))
+        break
+    fi
+
+    sleep 1
+done
+
 if [[ "${FDCODE_SMOKE_BARK}" == "1" ]]; then
     sleep 1
     bark_hits="$(wc -l <"${BARK_LOG}" | tr -d ' ')"
     echo "[fdcode-smoke] bark hits: ${bark_hits}"
-    if [[ "${bark_hits}" -lt "${pass_count}" ]]; then
+    if [[ "${bark_hits}" -lt "${bark_expected_count}" ]]; then
         echo "[fdcode-smoke] bark push check failed"
         fail_count=$((fail_count + 1))
     fi

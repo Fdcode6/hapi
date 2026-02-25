@@ -38,7 +38,8 @@
         "test:web": "cd web && bun run test",
         "clean-session": "bun run hub/scripts/cleanup-sessions.ts",
         "release-all": "cd cli && bun run release-all",
-        "smoke:fdcode": "./scripts/fdcode-smoke.sh"
+        "smoke:fdcode": "./scripts/fdcode-smoke.sh",
+        "smoke:fdcode:mobile-api": "./scripts/fdcode-mobile-api-smoke.sh"
     },
     "devDependencies": {
         "@types/node": "^25.3.0",
