@@ -45,47 +45,70 @@ function createFakeRuntimeBridge() {
             return () => listeners.delete(listener)
         },
         dispatch: async (command: CommandEnvelope) => {
-            if (command.type !== 'send_message') {
-                return
-            }
             const emit = (event: EventEnvelope) => {
                 for (const listener of listeners) {
                     listener(event)
                 }
             }
 
-            emit({
-                eventId: crypto.randomUUID(),
-                sessionId: command.sessionId,
-                seq: getNextSeq(command.sessionId),
-                type: 'message_delta',
-                data: {
-                    text: command.payload.text,
-                    role: 'assistant'
-                },
-                createdAt: Date.now()
-            })
-            emit({
-                eventId: crypto.randomUUID(),
-                sessionId: command.sessionId,
-                seq: getNextSeq(command.sessionId),
-                type: 'message_final',
-                data: {
-                    text: command.payload.text,
-                    role: 'assistant'
-                },
-                createdAt: Date.now()
-            })
-            emit({
-                eventId: crypto.randomUUID(),
-                sessionId: command.sessionId,
-                seq: getNextSeq(command.sessionId),
-                type: 'ready',
-                data: {
-                    status: 'idle'
-                },
-                createdAt: Date.now()
-            })
+            if (command.type === 'send_message') {
+                emit({
+                    eventId: crypto.randomUUID(),
+                    sessionId: command.sessionId,
+                    seq: getNextSeq(command.sessionId),
+                    type: 'message_delta',
+                    data: {
+                        text: command.payload.text,
+                        role: 'assistant'
+                    },
+                    createdAt: Date.now()
+                })
+                emit({
+                    eventId: crypto.randomUUID(),
+                    sessionId: command.sessionId,
+                    seq: getNextSeq(command.sessionId),
+                    type: 'message_final',
+                    data: {
+                        text: command.payload.text,
+                        role: 'assistant'
+                    },
+                    createdAt: Date.now()
+                })
+                emit({
+                    eventId: crypto.randomUUID(),
+                    sessionId: command.sessionId,
+                    seq: getNextSeq(command.sessionId),
+                    type: 'ready',
+                    data: {
+                        status: 'idle'
+                    },
+                    createdAt: Date.now()
+                })
+                return
+            }
+
+            if (command.type === 'approve_tool') {
+                emit({
+                    eventId: crypto.randomUUID(),
+                    sessionId: command.sessionId,
+                    seq: getNextSeq(command.sessionId),
+                    type: 'tool_result',
+                    data: {
+                        requestId: command.payload.requestId,
+                        ok: command.payload.approved,
+                        output: command.payload.reason ?? (command.payload.approved ? 'approved' : 'denied')
+                    },
+                    createdAt: Date.now()
+                })
+                emit({
+                    eventId: crypto.randomUUID(),
+                    sessionId: command.sessionId,
+                    seq: getNextSeq(command.sessionId),
+                    type: 'ready',
+                    data: { status: 'idle' },
+                    createdAt: Date.now()
+                })
+            }
         }
     }
 }
@@ -140,6 +163,50 @@ describe('cloud <-> runtime chain', () => {
         expect(eventsBody.events.some((event) => event.type === 'ready')).toBe(true)
     })
 
+
+
+    it('handles approve_tool command and replays tool_result', async () => {
+        const runtime = createFakeRuntimeBridge()
+        const state = createCloudState({ runtimeBridge: runtime })
+        const app = createApp(state)
+        const accessToken = await login(app)
+
+        await app.request('/v1/sessions/s-approve/commands', {
+            method: 'POST',
+            headers: {
+                authorization: `Bearer ${accessToken}`,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+                commandId: 'c-approve-seed',
+                sessionId: 's-approve',
+                type: 'send_message',
+                payload: { text: 'need approval' },
+                ttlMs: 30_000
+            })
+        })
+
+        const approveRes = await app.request('/v1/sessions/s-approve/commands', {
+            method: 'POST',
+            headers: {
+                authorization: `Bearer ${accessToken}`,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+                commandId: 'c-approve-1',
+                sessionId: 's-approve',
+                type: 'approve_tool',
+                payload: { requestId: 'r-approve-1', approved: true },
+                ttlMs: 30_000
+            })
+        })
+
+        expect(approveRes.status).toBe(200)
+        await waitUntil(() => state.eventService.listAfter('s-approve', 0).some((event) => event.type === 'tool_result'))
+
+        const events = state.eventService.listAfter('s-approve', 0)
+        expect(events.some((event) => event.type === 'tool_result')).toBe(true)
+    })
 
     it('triggers tool_request and error notifications with debounce', async () => {
         const runtime = createFakeRuntimeBridge()

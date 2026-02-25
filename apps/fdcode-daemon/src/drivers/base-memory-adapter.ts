@@ -88,8 +88,34 @@ export abstract class BaseMemoryAdapter implements DriverAdapter {
         return '0.1.0-dev'
     }
 
-    async handleCommand(_command: CommandEnvelope): Promise<void> {
-        return
+    async handleCommand(command: CommandEnvelope): Promise<void> {
+        if (command.type !== 'approve_tool') {
+            return
+        }
+
+        const sessionId = command.sessionId
+        const nextSeq = this.nextSeq(sessionId)
+        this.emit({
+            eventId: crypto.randomUUID(),
+            sessionId,
+            seq: nextSeq,
+            type: 'tool_result',
+            data: {
+                requestId: command.payload.requestId,
+                ok: command.payload.approved,
+                output: command.payload.reason ?? (command.payload.approved ? 'approved' : 'denied')
+            },
+            createdAt: Date.now()
+        })
+
+        this.emit({
+            eventId: crypto.randomUUID(),
+            sessionId,
+            seq: this.nextSeq(sessionId),
+            type: 'ready',
+            data: { status: 'idle' },
+            createdAt: Date.now()
+        })
     }
 
     protected emit(event: EventEnvelope): void {
