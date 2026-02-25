@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test'
 import { CommandEnvelopeSchema } from '../command'
-import { EventEnvelopeSchema, RealtimeResumeRequestSchema } from '../event'
+import {
+    EventEnvelopeSchema,
+    RealtimeClientFrameSchema,
+    RealtimeResumeRequestSchema,
+    RealtimeServerFrameSchema
+} from '../event'
 
 describe('protocol schemas', () => {
     it('accepts send_message command envelope', () => {
@@ -32,5 +37,20 @@ describe('protocol schemas', () => {
             afterSeq: 10
         })
         expect(parsed.success).toBe(true)
+    })
+
+    it('accepts realtime client/server frames', () => {
+        const clientParsed = RealtimeClientFrameSchema.safeParse({
+            type: 'resume',
+            sessionId: 's1',
+            afterSeq: 3
+        })
+        const serverParsed = RealtimeServerFrameSchema.safeParse({
+            type: 'ready',
+            sessionId: 's1',
+            lastSeq: 3
+        })
+        expect(clientParsed.success).toBe(true)
+        expect(serverParsed.success).toBe(true)
     })
 })

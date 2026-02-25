@@ -12,8 +12,10 @@
 - Command ack: daemon posts `POST /v1/device-runtime/commands/:sessionId/:commandId/ack`
 - Event ingest: daemon posts `POST /v1/device-runtime/sessions/:id/events`
 - User replay: mobile/web reads `GET /v1/sessions/:id/events?afterSeq=...`
+- Mobile realtime: `WS /v1/realtime?sessionId=...&afterSeq=...&accessToken=...`
 
-> Note: This is HTTP polling + ingest (not websocket), intentionally chosen for easier self-host deployment and stable reconnect behavior.
+> Note: daemon side remains HTTP polling + ingest (easy NAT/self-host).  
+> Mobile side is Hybrid: foreground websocket + replay fallback + push notify.
 
 ## Self-hosting topology (Aliyun VPS + local machine)
 
@@ -119,6 +121,7 @@ FDCODE_SMOKE_TIMEOUT_SEC=120 bun run smoke:fdcode
 - Cloud: `GET /health`
 - Device liveness: heartbeat every 10 seconds
 - Session stream: verify monotonic `seq` and no gaps after replay
+- Realtime: websocket connect must receive `{ type: \"ready\" }` after replay
 
 ## Recovery runbook
 

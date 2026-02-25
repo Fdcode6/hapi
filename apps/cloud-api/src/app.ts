@@ -41,11 +41,15 @@ function getDbPathFromEnv(): string | undefined {
     return process.env.FDCODE_DB_PATH?.trim() || undefined
 }
 
-export function createApp(state: CloudState = createCloudState({
-    bark: getBarkConfigFromEnv(),
-    expo: getExpoConfigFromEnv(),
-    dbPath: getDbPathFromEnv()
-})): Hono<CloudEnv> {
+export function createStateFromEnv(): CloudState {
+    return createCloudState({
+        bark: getBarkConfigFromEnv(),
+        expo: getExpoConfigFromEnv(),
+        dbPath: getDbPathFromEnv()
+    })
+}
+
+export function createApp(state: CloudState = createStateFromEnv()): Hono<CloudEnv> {
     const app = new Hono<CloudEnv>()
 
     app.get('/health', (c) => c.json({ status: 'ok' }))

@@ -34,4 +34,16 @@ describe('mobile api client', () => {
         expect(result.ok).toBe(true)
         expect(callCount).toBe(2)
     })
+
+    it('builds realtime websocket url with token and cursor', async () => {
+        const client = new MobileApiClient('https://api.example.com', {
+            getAccessToken: () => 'access-token',
+            refreshAccessToken: async () => 'fresh-token',
+            realtimeWsUrl: 'wss://rt.example.com'
+        })
+
+        const wsUrl = await client.buildRealtimeUrl('s-rt', 9)
+
+        expect(wsUrl).toBe('wss://rt.example.com/v1/realtime?sessionId=s-rt&afterSeq=9&accessToken=access-token')
+    })
 })

@@ -18,10 +18,19 @@ export class SessionStore {
             status: 'healthy' as const
         }
 
+        const duplicated = existing.events.some((item) =>
+            item.eventId === event.eventId || item.seq === event.seq
+        )
+        if (duplicated) {
+            return existing
+        }
+
+        const hasGap = event.seq > existing.lastSeq + 1
         const next: SessionViewState = {
             ...existing,
             lastSeq: Math.max(existing.lastSeq, event.seq),
-            events: [...existing.events, event]
+            events: [...existing.events, event].sort((a, b) => a.seq - b.seq),
+            status: hasGap ? 'degraded' : existing.status
         }
 
         this.states.set(event.sessionId, next)

@@ -4,10 +4,20 @@ import { EventRepository } from './repo'
 type EventAppendedHandler = (event: EventEnvelope) => void | Promise<void>
 
 export class EventService {
-    constructor(
-        private readonly repo: EventRepository,
-        private readonly onAppended?: EventAppendedHandler
-    ) {}
+    private readonly listeners = new Set<EventAppendedHandler>()
+
+    constructor(private readonly repo: EventRepository, onAppended?: EventAppendedHandler) {
+        if (onAppended) {
+            this.listeners.add(onAppended)
+        }
+    }
+
+    subscribe(listener: EventAppendedHandler): () => void {
+        this.listeners.add(listener)
+        return () => {
+            this.listeners.delete(listener)
+        }
+    }
 
     append(raw: unknown): { ok: true; value: EventEnvelope } | { ok: false; error: string } {
         const parsed = EventEnvelopeSchema.safeParse(raw)
@@ -16,8 +26,10 @@ export class EventService {
         }
 
         const normalized = this.repo.append(parsed.data)
-        if (this.onAppended) {
-            void this.onAppended(normalized)
+        for (const listener of this.listeners) {
+            Promise.resolve(listener(normalized)).catch((error) => {
+                console.warn('[events] appended listener failed', error)
+            })
         }
         return { ok: true, value: normalized }
     }

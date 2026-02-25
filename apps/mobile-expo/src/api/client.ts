@@ -1,6 +1,7 @@
 export type MobileApiClientOptions = {
     getAccessToken: () => string | null
     refreshAccessToken: () => Promise<string | null>
+    realtimeWsUrl?: string
 }
 
 export class MobileApiClient {
@@ -8,6 +9,21 @@ export class MobileApiClient {
         private readonly baseUrl: string,
         private readonly options: MobileApiClientOptions
     ) {}
+
+    async buildRealtimeUrl(sessionId: string, afterSeq: number): Promise<string | null> {
+        const token = this.options.getAccessToken() ?? await this.options.refreshAccessToken()
+        if (!token) {
+            return null
+        }
+
+        const wsBase = this.options.realtimeWsUrl
+            ?? this.baseUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+        const url = new URL('/v1/realtime', wsBase)
+        url.searchParams.set('sessionId', sessionId)
+        url.searchParams.set('afterSeq', String(Math.max(0, afterSeq)))
+        url.searchParams.set('accessToken', token)
+        return url.toString()
+    }
 
     async request<T>(path: string, init?: RequestInit, attempt = 0): Promise<T> {
         const token = this.options.getAccessToken()

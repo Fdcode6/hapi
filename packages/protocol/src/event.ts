@@ -85,5 +85,40 @@ export const RealtimeResumeRequestSchema = z.object({
     afterSeq: z.number().int().nonnegative()
 })
 
+export const RealtimeClientFrameSchema = z.discriminatedUnion('type', [
+    z.object({
+        type: z.literal('ping'),
+        ts: z.number().int().nonnegative().optional()
+    }),
+    z.object({
+        type: z.literal('resume'),
+        sessionId: z.string().min(1),
+        afterSeq: z.number().int().nonnegative()
+    })
+])
+
+export const RealtimeServerFrameSchema = z.discriminatedUnion('type', [
+    z.object({
+        type: z.literal('event'),
+        event: EventEnvelopeSchema
+    }),
+    z.object({
+        type: z.literal('ready'),
+        sessionId: z.string().min(1),
+        lastSeq: z.number().int().nonnegative()
+    }),
+    z.object({
+        type: z.literal('error'),
+        code: z.string().min(1),
+        message: z.string().min(1)
+    }),
+    z.object({
+        type: z.literal('pong'),
+        ts: z.number().int().nonnegative().optional()
+    })
+])
+
 export type EventEnvelope = z.infer<typeof EventEnvelopeSchema>
 export type RealtimeResumeRequest = z.infer<typeof RealtimeResumeRequestSchema>
+export type RealtimeClientFrame = z.infer<typeof RealtimeClientFrameSchema>
+export type RealtimeServerFrame = z.infer<typeof RealtimeServerFrameSchema>

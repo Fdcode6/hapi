@@ -15,6 +15,7 @@ import {
 } from './push/service'
 import { SessionOwnershipStore } from './sessions/ownership'
 import { openCloudDatabase } from './store/sqlite'
+import { RealtimeGateway } from './realtime/gateway'
 
 export type CloudState = {
     refreshStore: RefreshStore
@@ -24,6 +25,7 @@ export type CloudState = {
     deviceChannelService: DeviceChannelService
     pushService: PushService
     ownershipStore: SessionOwnershipStore
+    realtimeGateway: RealtimeGateway
 }
 
 export type CloudStateOptions = {
@@ -46,9 +48,9 @@ export function createCloudState(options?: CloudStateOptions): CloudState {
     )
     const completionMonitor = new CompletionMonitor(ownershipStore, pushService)
     const commandService = new CommandService(commandRepository)
-    const eventService = new EventService(eventRepository, async (event) => {
-        await completionMonitor.onEvent(event)
-    })
+    const eventService = new EventService(eventRepository)
+    eventService.subscribe((event) => completionMonitor.onEvent(event))
+    const realtimeGateway = new RealtimeGateway(eventService, ownershipStore)
 
     if (options?.runtimeBridge) {
         options.runtimeBridge.subscribe((event) => {
@@ -70,6 +72,7 @@ export function createCloudState(options?: CloudStateOptions): CloudState {
         eventService,
         deviceChannelService: new DeviceChannelService(),
         pushService,
-        ownershipStore
+        ownershipStore,
+        realtimeGateway
     }
 }
