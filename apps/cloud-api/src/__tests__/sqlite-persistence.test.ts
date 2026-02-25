@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { createApp } from '../app'
 import { createCloudState } from '../state'
 
 const tempFiles: string[] = []
@@ -58,5 +59,30 @@ describe('sqlite persistence', () => {
         expect(events[0]?.eventId).toBe('persist-e1')
 
         expect(second.ownershipStore.getOwner('persist-s1')).toBe('owner')
+    })
+
+    it('persists refresh sessions across app re-create', async () => {
+        const dbPath = createTempDbPath()
+        const firstApp = createApp(createCloudState({ dbPath }))
+
+        const loginRes = await firstApp.request('/v1/auth/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ accessToken: 'fdcode-local-dev' })
+        })
+        expect(loginRes.status).toBe(200)
+        const loginBody = await loginRes.json() as { refreshToken: string }
+        expect(typeof loginBody.refreshToken).toBe('string')
+
+        const secondApp = createApp(createCloudState({ dbPath }))
+        const refreshRes = await secondApp.request('/v1/auth/refresh', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ refreshToken: loginBody.refreshToken })
+        })
+
+        expect(refreshRes.status).toBe(200)
+        const refreshBody = await refreshRes.json() as { accessToken: string }
+        expect(typeof refreshBody.accessToken).toBe('string')
     })
 })

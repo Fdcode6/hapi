@@ -1,3 +1,5 @@
+import type { Database } from 'bun:sqlite'
+
 export type RefreshSession = {
     sessionId: string
     userId: string
@@ -6,9 +8,15 @@ export type RefreshSession = {
 }
 
 export class RefreshStore {
-    private readonly sessions = new Map<string, RefreshSession>()
+    private readonly db: Database
+
+    constructor(db: Database) {
+        this.db = db
+    }
 
     issue(userId: string, ttlMs: number): RefreshSession {
+        this.cleanupExpired()
+
         const now = Date.now()
         const session: RefreshSession = {
             sessionId: crypto.randomUUID(),
@@ -16,23 +24,60 @@ export class RefreshStore {
             createdAt: now,
             expiresAt: now + ttlMs
         }
-        this.sessions.set(session.sessionId, session)
+
+        this.db.query(`
+            INSERT INTO refresh_sessions (session_id, user_id, created_at, expires_at)
+            VALUES (?, ?, ?, ?)
+        `).run(
+            session.sessionId,
+            session.userId,
+            session.createdAt,
+            session.expiresAt
+        )
+
         return session
     }
 
     get(sessionId: string): RefreshSession | null {
-        const session = this.sessions.get(sessionId)
-        if (!session) {
+        this.cleanupExpired()
+
+        const row = this.db.query(`
+            SELECT session_id, user_id, created_at, expires_at
+            FROM refresh_sessions
+            WHERE session_id = ?
+            LIMIT 1
+        `).get(sessionId) as {
+            session_id: string
+            user_id: string
+            created_at: number
+            expires_at: number
+        } | null
+
+        if (!row) {
             return null
         }
-        if (session.expiresAt <= Date.now()) {
-            this.sessions.delete(sessionId)
-            return null
+
+        return {
+            sessionId: row.session_id,
+            userId: row.user_id,
+            createdAt: row.created_at,
+            expiresAt: row.expires_at
         }
-        return session
     }
 
     revoke(sessionId: string): void {
-        this.sessions.delete(sessionId)
+        this.db.query(`
+            DELETE FROM refresh_sessions
+            WHERE session_id = ?
+        `).run(sessionId)
+    }
+
+    cleanupExpired(now = Date.now()): number {
+        const result = this.db.query(`
+            DELETE FROM refresh_sessions
+            WHERE expires_at <= ?
+        `).run(now)
+
+        return Number(result.changes ?? 0)
     }
 }

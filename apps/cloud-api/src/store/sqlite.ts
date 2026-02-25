@@ -40,6 +40,16 @@ CREATE TABLE IF NOT EXISTS push_tokens (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (user_id, token)
 );
+
+CREATE TABLE IF NOT EXISTS refresh_sessions (
+    session_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_sessions_expires
+    ON refresh_sessions (expires_at);
 `
 
 export function openCloudDatabase(path: string): Database {

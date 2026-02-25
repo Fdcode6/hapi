@@ -37,7 +37,7 @@ export type CloudStateOptions = {
 
 export function createCloudState(options?: CloudStateOptions): CloudState {
     const db = openCloudDatabase(options?.dbPath ?? ':memory:')
-    const refreshStore = new RefreshStore()
+    const refreshStore = new RefreshStore(db)
     const commandRepository = new CommandRepository(db)
     const eventRepository = new EventRepository(db)
     const ownershipStore = new SessionOwnershipStore(db)
