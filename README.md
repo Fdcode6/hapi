@@ -50,3 +50,15 @@ bun run build:single-exe
 ## Credits
 
 HAPI means "哈皮" a Chinese transliteration of [Happy](https://github.com/slopus/happy). Great credit to the original project.
+
+
+## FDCode self-host helpers
+
+For VPS + local daemon deployment helpers:
+
+```bash
+bash scripts/fdcode-deploy-cloud.sh --dry-run
+bash scripts/fdcode-deploy-daemon.sh --dry-run
+```
+
+Systemd templates are in `deploy/systemd/`.

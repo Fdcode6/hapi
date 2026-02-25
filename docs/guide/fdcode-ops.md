@@ -137,3 +137,21 @@ FDCODE_SMOKE_TIMEOUT_SEC=120 bun run smoke:fdcode
 - Completion monitor: once assistant `message_final` is followed by `ready`, cloud sends completion push.
 - Bark webhook uses `FDCODE_BARK_ENDPOINT`.
 - Expo real delivery uses `FDCODE_EXPO_PUSH_ENABLED=1` and `FDCODE_EXPO_PUSH_ENDPOINT`.
+
+
+## Systemd templates + deploy scripts
+
+- Cloud script: `scripts/fdcode-deploy-cloud.sh`
+- Daemon script: `scripts/fdcode-deploy-daemon.sh`
+- Unit templates:
+  - `deploy/systemd/fdcode-cloud.service`
+  - `deploy/systemd/fdcode-daemon.service`
+
+Dry-run checks:
+
+```bash
+bash scripts/fdcode-deploy-cloud.sh --dry-run
+bash scripts/fdcode-deploy-daemon.sh --dry-run
+```
+
+After确认无误再正式执行（去掉 `--dry-run`）。
