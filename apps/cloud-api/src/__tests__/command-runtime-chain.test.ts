@@ -140,6 +140,85 @@ describe('cloud <-> runtime chain', () => {
         expect(eventsBody.events.some((event) => event.type === 'ready')).toBe(true)
     })
 
+
+    it('triggers tool_request and error notifications with debounce', async () => {
+        const runtime = createFakeRuntimeBridge()
+        const state = createCloudState({
+            runtimeBridge: runtime
+        })
+        const app = createApp(state)
+        const accessToken = await login(app)
+
+        state.pushService.registerToken({
+            userId: 'owner',
+            token: 'ExponentPushToken[alert]',
+            platform: 'ios',
+            createdAt: Date.now()
+        })
+
+        await app.request('/v1/sessions/s-alert/commands', {
+            method: 'POST',
+            headers: {
+                authorization: `Bearer ${accessToken}`,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+                commandId: 'c-alert-1',
+                sessionId: 's-alert',
+                type: 'send_message',
+                payload: { text: 'need action' },
+                ttlMs: 30_000
+            })
+        })
+
+        state.eventService.append({
+            eventId: 'tool-alert-1',
+            sessionId: 's-alert',
+            seq: 99,
+            type: 'tool_request',
+            data: {
+                requestId: 'req-1',
+                tool: 'bash',
+                arguments: { cmd: 'ls' }
+            },
+            createdAt: Date.now()
+        })
+
+        state.eventService.append({
+            eventId: 'tool-alert-2',
+            sessionId: 's-alert',
+            seq: 100,
+            type: 'tool_request',
+            data: {
+                requestId: 'req-2',
+                tool: 'bash',
+                arguments: { cmd: 'pwd' }
+            },
+            createdAt: Date.now()
+        })
+
+        state.eventService.append({
+            eventId: 'err-alert-1',
+            sessionId: 's-alert',
+            seq: 101,
+            type: 'error',
+            data: {
+                message: 'fatal boom',
+                code: 'E_FATAL'
+            },
+            createdAt: Date.now()
+        })
+
+        await waitUntil(() => state.pushService.getSent().length >= 3)
+
+        const titles = state.pushService.getSent().map((item) => item.title)
+        expect(titles.some((title) => title.includes('待授权'))).toBe(true)
+        expect(titles.some((title) => title.includes('异常'))).toBe(true)
+
+        const toolPushCount = titles.filter((title) => title.includes('待授权')).length
+        expect(toolPushCount).toBe(1)
+    })
+
     it('triggers completion notification and bark webhook on final completion', async () => {
         const barkCalls: string[] = []
         const runtime = createFakeRuntimeBridge()

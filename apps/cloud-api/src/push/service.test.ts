@@ -48,6 +48,32 @@ describe('push service', () => {
         expect(calls[0]).toContain('group=fdcode')
     })
 
+
+    it('sends helper payloads for tool request and error', async () => {
+        const service = new PushService(createTestDb())
+        service.registerToken({
+            userId: 'owner',
+            token: 'ExponentPushToken[helper]',
+            platform: 'ios',
+            createdAt: Date.now()
+        })
+
+        await service.sendToolRequest({
+            userId: 'owner',
+            sessionId: 's-tool',
+            body: '工具 bash 等待授权'
+        })
+        await service.sendError({
+            userId: 'owner',
+            sessionId: 's-tool',
+            body: '执行失败'
+        })
+
+        expect(service.getSent()).toHaveLength(2)
+        expect(service.getSent()[0]?.title).toContain('待授权')
+        expect(service.getSent()[1]?.title).toContain('异常')
+    })
+
     it('sends expo push payload for registered expo tokens', async () => {
         const expoCalls: Array<{ input: string; body: string | undefined }> = []
         const expo = new ExpoPushNotifier({

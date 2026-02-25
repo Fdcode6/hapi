@@ -165,6 +165,42 @@ export class PushService {
         }
     }
 
+    async sendToolRequest(args: {
+        userId: string
+        sessionId: string
+        body: string
+        data?: Record<string, unknown>
+    }): Promise<void> {
+        await this.send({
+            userId: args.userId,
+            title: `FDCode 待授权 · ${args.sessionId}`,
+            body: args.body,
+            data: {
+                sessionId: args.sessionId,
+                type: 'tool_request',
+                ...(args.data ?? {})
+            }
+        })
+    }
+
+    async sendError(args: {
+        userId: string
+        sessionId: string
+        body: string
+        data?: Record<string, unknown>
+    }): Promise<void> {
+        await this.send({
+            userId: args.userId,
+            title: `FDCode 异常 · ${args.sessionId}`,
+            body: args.body,
+            data: {
+                sessionId: args.sessionId,
+                type: 'session_error',
+                ...(args.data ?? {})
+            }
+        })
+    }
+
     async sendCompletion(args: {
         userId: string
         sessionId: string

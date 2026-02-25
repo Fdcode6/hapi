@@ -1,11 +1,11 @@
 import type { EventEnvelope } from '@fdcode/protocol'
 import { PushService } from '../push/service'
 import { SessionOwnershipStore } from '../sessions/ownership'
+import { NotificationPolicy } from './policy'
 
 type SessionCompletionState = {
     lastAssistantFinalText: string | null
     lastAssistantFinalSeq: number
-    lastNotifiedSeq: number
 }
 
 export class CompletionMonitor {
@@ -13,14 +13,14 @@ export class CompletionMonitor {
 
     constructor(
         private readonly owners: SessionOwnershipStore,
-        private readonly pushService: PushService
+        private readonly pushService: PushService,
+        private readonly policy: NotificationPolicy = new NotificationPolicy()
     ) {}
 
     async onEvent(event: EventEnvelope): Promise<void> {
         const state = this.stateBySession.get(event.sessionId) ?? {
             lastAssistantFinalText: null,
-            lastAssistantFinalSeq: 0,
-            lastNotifiedSeq: 0
+            lastAssistantFinalSeq: 0
         }
 
         if (event.type === 'message_final' && event.data.role === 'assistant') {
@@ -30,41 +30,45 @@ export class CompletionMonitor {
             return
         }
 
-        if (!this.isCompletionEvent(event)) {
-            this.stateBySession.set(event.sessionId, state)
-            return
-        }
-
-        if (!state.lastAssistantFinalText || state.lastAssistantFinalSeq === 0) {
-            return
-        }
-
-        if (state.lastNotifiedSeq >= event.seq) {
-            return
-        }
+        this.stateBySession.set(event.sessionId, state)
 
         const owner = this.owners.getOwner(event.sessionId)
         if (!owner) {
             return
         }
 
-        state.lastNotifiedSeq = event.seq
-        this.stateBySession.set(event.sessionId, state)
+        const intent = this.policy.evaluate(event, {
+            sessionId: event.sessionId,
+            assistantPreview: state.lastAssistantFinalText
+        })
+        if (!intent) {
+            return
+        }
 
-        await this.pushService.sendCompletion({
+        if (intent.kind === 'completion') {
+            await this.pushService.sendCompletion({
+                userId: owner,
+                sessionId: event.sessionId,
+                preview: state.lastAssistantFinalText ?? intent.body
+            })
+            return
+        }
+
+        if (intent.kind === 'tool_request') {
+            await this.pushService.sendToolRequest({
+                userId: owner,
+                sessionId: event.sessionId,
+                body: intent.body,
+                data: intent.data
+            })
+            return
+        }
+
+        await this.pushService.sendError({
             userId: owner,
             sessionId: event.sessionId,
-            preview: state.lastAssistantFinalText
+            body: intent.body,
+            data: intent.data
         })
-    }
-
-    private isCompletionEvent(event: EventEnvelope): boolean {
-        if (event.type === 'ready') {
-            return true
-        }
-        if (event.type !== 'session_state') {
-            return false
-        }
-        return event.data.state === 'completed'
     }
 }
