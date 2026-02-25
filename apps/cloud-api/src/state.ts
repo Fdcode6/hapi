@@ -14,6 +14,7 @@ import {
     PushService
 } from './push/service'
 import { SessionOwnershipStore } from './sessions/ownership'
+import { SessionService } from './sessions/service'
 import { openCloudDatabase } from './store/sqlite'
 import { RealtimeGateway } from './realtime/gateway'
 
@@ -25,6 +26,7 @@ export type CloudState = {
     deviceChannelService: DeviceChannelService
     pushService: PushService
     ownershipStore: SessionOwnershipStore
+    sessionService: SessionService
     realtimeGateway: RealtimeGateway
 }
 
@@ -41,6 +43,7 @@ export function createCloudState(options?: CloudStateOptions): CloudState {
     const commandRepository = new CommandRepository(db)
     const eventRepository = new EventRepository(db)
     const ownershipStore = new SessionOwnershipStore(db)
+    const sessionService = new SessionService(db)
     const pushService = new PushService(
         db,
         options?.bark ? new BarkNotifier(options.bark) : undefined,
@@ -73,6 +76,7 @@ export function createCloudState(options?: CloudStateOptions): CloudState {
         deviceChannelService: new DeviceChannelService(),
         pushService,
         ownershipStore,
+        sessionService,
         realtimeGateway
     }
 }

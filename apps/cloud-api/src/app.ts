@@ -8,6 +8,7 @@ import { requireDeviceRuntimeToken } from './device-runtime/middleware'
 import { createDeviceRuntimeRoutes } from './device-runtime/routes'
 import { createEventRoutes } from './events/routes'
 import { createPushRoutes } from './push/routes'
+import { createSessionRoutes } from './sessions/routes'
 import { createCloudState, type CloudState } from './state'
 import type { BarkNotifierConfig, ExpoPushNotifierConfig } from './push/service'
 
@@ -65,6 +66,7 @@ export function createApp(state: CloudState = createStateFromEnv()): Hono<CloudE
     app.use('/v1/*', requireAccessToken)
     app.route('/v1', createCommandRoutes(state.commandIngressService))
     app.route('/v1', createEventRoutes(state.eventService))
+    app.route('/v1', createSessionRoutes(state.sessionService))
     app.route('/v1', createDeviceRoutes(state.deviceChannelService))
     app.route('/v1', createPushRoutes(state.pushService))
 

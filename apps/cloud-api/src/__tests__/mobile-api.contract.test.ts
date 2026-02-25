@@ -93,6 +93,27 @@ describe('mobile api contract', () => {
         expect(eventsBody.events).toHaveLength(1)
         expect(eventsBody.events[0]?.seq).toBe(1)
 
+        const sessionsRes = await app.request('/v1/sessions', {
+            method: 'GET',
+            headers: authHeaders
+        })
+        expect(sessionsRes.status).toBe(200)
+        const sessionsBody = await sessionsRes.json() as {
+            sessions: Array<{ sessionId: string; lastSeq: number; state: string }>
+        }
+        expect(sessionsBody.sessions.some((item) => item.sessionId === 'mobile-s1')).toBe(true)
+
+        const sessionDetailRes = await app.request('/v1/sessions/mobile-s1', {
+            method: 'GET',
+            headers: authHeaders
+        })
+        expect(sessionDetailRes.status).toBe(200)
+        const sessionDetailBody = await sessionDetailRes.json() as {
+            session: { sessionId: string; recentEvents: Array<{ seq: number }> }
+        }
+        expect(sessionDetailBody.session.sessionId).toBe('mobile-s1')
+        expect(sessionDetailBody.session.recentEvents[0]?.seq).toBe(1)
+
         const pushRegister = await app.request('/v1/push/register', {
             method: 'POST',
             headers: authHeaders,
